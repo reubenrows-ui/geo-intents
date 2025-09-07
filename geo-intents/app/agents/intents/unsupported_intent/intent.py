@@ -8,8 +8,6 @@ Current scaffolding behavior:
 - You can expand this later with guidance to the user, logging, or analytics.
 """
 
-import json
-
 def handle_unsupported_intent(user_query: str) -> str:
     """
     Fallback workflow when no supported intent applies.
@@ -17,7 +15,7 @@ def handle_unsupported_intent(user_query: str) -> str:
     Example output:
       {"intent":"unsupported_intent","query":"Tell me a bedtime story"}
     """
-    return json.dumps({
+    return {
         "intent": "unsupported_intent",
         "query": user_query,
-    })
+    }

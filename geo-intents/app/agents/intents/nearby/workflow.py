@@ -1,5 +1,5 @@
 """
-Workflow orchestration for the `generic_search` intent.
+Workflow orchestration for the `nearby` intent.
 
 Responsibilities
 ---------------
@@ -20,7 +20,7 @@ from typing import Dict, Any
 from .extractor import extract_slot_candidates
 
 
-def run_generic_search_workflow(user_query: str) -> Dict[str, Any]:
+def run_nearby_workflow(user_query: str) -> Dict[str, Any]:
     """
     Execute the core hierarchy search workflow.
 
@@ -28,7 +28,7 @@ def run_generic_search_workflow(user_query: str) -> Dict[str, Any]:
     -------
     dict
         {
-          "intent": "generic_search",
+          "intent": "nearby",
           "query":  "<original user query>",
           "slots":  { ... candidates dict from extractor ... }
         }
@@ -36,7 +36,7 @@ def run_generic_search_workflow(user_query: str) -> Dict[str, Any]:
     slots = extract_slot_candidates(user_query)
 
     result: Dict[str, Any] = {
-        "intent": "generic_search",
+        "intent": "nearby",
         "query": user_query,
         "slots": slots,
     }

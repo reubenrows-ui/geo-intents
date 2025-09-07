@@ -15,7 +15,7 @@ from google import genai
 from google.genai.types import HttpOptions
 
 # Import intent workflows from folder-per-intent modules
-from app.agents.intents.generic_search.intent import handle_generic_search
+from app.agents.intents.nearby.intent import handle_nearby
 from app.agents.intents.unsupported_intent.intent import handle_unsupported_intent
 
 # ----------------------------
@@ -31,7 +31,7 @@ os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "True")
 # --------------------------------------------
 # Constrains the model to return ONLY this JSON shape:
 # {
-#   "intent": "generic_search" | "unsupported_intent",
+#   "intent": "nearby" | "unsupported_intent",
 #   "confidence": <0.0..1.0>
 # }
 _INTENT_RESPONSE_SCHEMA = {
@@ -39,7 +39,7 @@ _INTENT_RESPONSE_SCHEMA = {
     "properties": {
         "intent": {
             "type": "STRING",
-            "enum": ["generic_search", "unsupported_intent"],
+            "enum": ["nearby", "unsupported_intent"],
         },
         "confidence": {
             "type": "NUMBER",
@@ -59,7 +59,7 @@ def _extract_intent(user_query: str) -> dict:
 
     Returns:
       dict shaped as _INTENT_RESPONSE_SCHEMA, e.g.:
-        {"intent":"generic_search","confidence":0.82}
+        {"intent":"nearby","confidence":0.82}
         or
         {"intent":"unsupported_intent","confidence":0.60}
     """
@@ -70,7 +70,7 @@ def _extract_intent(user_query: str) -> dict:
         "Classify the user's request into exactly one intent.\n"
         "Return JSON only, following the provided response schema.\n"
         "Intents:\n"
-        "- generic_search: when the user asks a generic metric-related question.\n"
+        "- nearby: when the user asks a generic metric-related question.\n"
         "- unsupported_intent: for anything else.\n\n"
         f"User query: {user_query}"
     )
@@ -94,14 +94,14 @@ def route_intent(user_query: str) -> str:
       3) Return that workflow's JSON verbatim.
 
     Output examples:
-      {"intent":"generic_search","query":"What were sales last quarter?"}
+      {"intent":"nearby","query":"What were sales last quarter?"}
       {"intent":"unsupported_intent","query":"Tell me a bedtime story"}
     """
     extraction = _extract_intent(user_query)
     intent = extraction.get("intent", "unsupported_intent")
 
-    if intent == "generic_search":
-        return handle_generic_search(user_query)
+    if intent == "nearby":
+        return handle_nearby(user_query)
     else:
         return handle_unsupported_intent(user_query)
 

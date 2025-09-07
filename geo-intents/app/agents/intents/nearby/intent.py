@@ -1,9 +1,9 @@
 """
-Public entrypoint for the `generic_search` intent.
+Public entrypoint for the `nearby` intent.
 
 What this file exports
 ----------------------
-- `handle_generic_search(user_query: str) -> str`
+- `handle_nearby(user_query: str) -> str`
 
 Behavior
 --------
@@ -17,13 +17,12 @@ Why this layer?
 - Lets the workflow stay pure-Python (dict), improving testability.
 """
 
-import json
-from .workflow import run_generic_search_workflow
+from .workflow import run_nearby_workflow
 
-__all__ = ["handle_generic_search"]
+__all__ = ["handle_nearby"]
 
 
-def handle_generic_search(user_query: str) -> str:
+def handle_nearby(user_query: str) -> str:
     """
     Entrypoint used by the router for this intent.
 
@@ -38,10 +37,15 @@ def handle_generic_search(user_query: str) -> str:
         JSON string that the agent will return verbatim.
         Example:
         {
-          "intent": "generic_search",
+          "intent": "nearby",
           "query":  "What were sales last quarter in Toronto?",
-          "slots":  { "metrics": [...], "dimensions": [...], "filters": [...] }
+          "slots":  {
+            "anchor_place": "Toronto",
+            "radius_value": 2,
+            "radius_unit": "km",
+            "entity": "Starbucks"
+          }
         }
     """
-    result_dict = run_generic_search_workflow(user_query)
-    return json.dumps(result_dict)
+    result_dict = run_nearby_workflow(user_query)
+    return result_dict
