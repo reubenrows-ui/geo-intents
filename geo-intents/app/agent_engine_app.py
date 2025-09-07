@@ -91,7 +91,7 @@ def deploy_agent_engine_app(
     """Deploy the agent engine app to Vertex AI."""
 
     staging_bucket_uri = f"gs://{project}-agent-engine"
-    artifacts_bucket_name = f"{project}-geo-intents-logs-data"
+    artifacts_bucket_name = f"{project}-ask-fusion-logs-data"
     create_bucket_if_not_exists(
         bucket_name=artifacts_bucket_name, project=project, location=location
     )
@@ -168,7 +168,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--agent-name",
-        default="geo-intents",
+        default="ask-fusion",
         help="Name for the agent engine",
     )
     parser.add_argument(

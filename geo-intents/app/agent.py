@@ -1,66 +1,121 @@
-# Copyright 2025 Google LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+"""
+Root ADK agent that:
+  1) Extracts an intent using Gemini with a strict JSON schema (structured outputs).
+  2) Routes to an intent-specific workflow module (folder-per-intent).
+  3) Returns the workflow's JSON result verbatim.
+"""
 
-import datetime
 import os
-from zoneinfo import ZoneInfo
-
+import json
 import google.auth
-from google.adk.agents import Agent
+from google.adk.agents import Agent  # ADK Agent base class
 
-_, project_id = google.auth.default()
-os.environ.setdefault("GOOGLE_CLOUD_PROJECT", project_id)
-os.environ.setdefault("GOOGLE_CLOUD_LOCATION", "global")
+# GenAI client (Vertex AI mode)
+from google import genai
+from google.genai.types import HttpOptions
+
+# Import intent workflows from folder-per-intent modules
+from app.agents.intents.generic_search.intent import handle_generic_search
+from app.agents.intents.unsupported_intent.intent import handle_unsupported_intent
+
+# ----------------------------
+# Environment: Vertex AI mode
+# ----------------------------
+# In starter-pack patterns, ADC (Application Default Credentials) provides the project.
+_, _project_id = google.auth.default()
+# Ensure the GenAI SDK uses Vertex AI (your GCP project/quota), not the public endpoint.
 os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "True")
 
+# --------------------------------------------
+# Structured output schema for intent extract
+# --------------------------------------------
+# Constrains the model to return ONLY this JSON shape:
+# {
+#   "intent": "generic_search" | "unsupported_intent",
+#   "confidence": <0.0..1.0>
+# }
+_INTENT_RESPONSE_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "intent": {
+            "type": "STRING",
+            "enum": ["generic_search", "unsupported_intent"],
+        },
+        "confidence": {
+            "type": "NUMBER",
+            "minimum": 0.0,
+            "maximum": 1.0,
+        },
+    },
+    "required": ["intent", "confidence"],
+}
 
-def get_weather(query: str) -> str:
-    """Simulates a web search. Use it get information on weather.
+def _extract_intent(user_query: str) -> dict:
+    """
+    Call Gemini (Vertex AI mode) with a strict response schema to classify the query.
 
-    Args:
-        query: A string containing the location to get weather information for.
+    Input:
+      user_query (str)
 
     Returns:
-        A string with the simulated weather information for the queried location.
+      dict shaped as _INTENT_RESPONSE_SCHEMA, e.g.:
+        {"intent":"generic_search","confidence":0.82}
+        or
+        {"intent":"unsupported_intent","confidence":0.60}
     """
-    if "sf" in query.lower() or "san francisco" in query.lower():
-        return "It's 60 degrees and foggy."
-    return "It's 90 degrees and sunny."
+    client = genai.Client(http_options=HttpOptions(api_version="v1"))
 
+    # Minimal instruction; schema enforces the output shape.
+    prompt = (
+        "Classify the user's request into exactly one intent.\n"
+        "Return JSON only, following the provided response schema.\n"
+        "Intents:\n"
+        "- generic_search: when the user asks a generic metric-related question.\n"
+        "- unsupported_intent: for anything else.\n\n"
+        f"User query: {user_query}"
+    )
 
-def get_current_time(query: str) -> str:
-    """Simulates getting the current time for a city.
+    resp = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=prompt,
+        config={
+            "response_mime_type": "application/json",   # force JSON
+            "response_schema": _INTENT_RESPONSE_SCHEMA, # enforce schema
+        },
+    )
+    # Official examples read resp.text; parse it to a Python dict.
+    return json.loads(resp.text)
 
-    Args:
-        city: The name of the city to get the current time for.
-
-    Returns:
-        A string with the current time information.
+def route_intent(user_query: str) -> str:
     """
-    if "sf" in query.lower() or "san francisco" in query.lower():
-        tz_identifier = "America/Los_Angeles"
+    Tool exposed to the ADK Agent. Deterministic orchestrator:
+      1) Extract intent (structured outputs).
+      2) Dispatch to the specific workflow module.
+      3) Return that workflow's JSON verbatim.
+
+    Output examples:
+      {"intent":"generic_search","query":"What were sales last quarter?"}
+      {"intent":"unsupported_intent","query":"Tell me a bedtime story"}
+    """
+    extraction = _extract_intent(user_query)
+    intent = extraction.get("intent", "unsupported_intent")
+
+    if intent == "generic_search":
+        return handle_generic_search(user_query)
     else:
-        return f"Sorry, I don't have timezone information for query: {query}."
+        return handle_unsupported_intent(user_query)
 
-    tz = ZoneInfo(tz_identifier)
-    now = datetime.datetime.now(tz)
-    return f"The current time for query {query} is {now.strftime('%Y-%m-%d %H:%M:%S %Z%z')}"
-
-
+# Root Agent:
+#  - Instruct the model to always call route_intent(user_query=...).
+#  - Return ONLY the tool's JSON payload (no extra words).
 root_agent = Agent(
     name="root_agent",
     model="gemini-2.5-flash",
-    instruction="You are a helpful AI assistant designed to provide accurate and useful information.",
-    tools=[get_weather, get_current_time],
+    instruction=(
+        "You are an intent router. For every user message:\n"
+        "1) Call the tool `route_intent(user_query=...)`.\n"
+        "2) Return ONLY the tool's JSON result verbatim.\n"
+        "Do NOT add any extra words or explanations."
+    ),
+    tools=[route_intent],
 )
